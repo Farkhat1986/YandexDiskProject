@@ -1,26 +1,30 @@
 from http import HTTPStatus
 
+import allure
+
 from connection.models import ErrorResponse
 
 
+@allure.title("Отказ в доступе при отсутствии OAuth-токена")
+@allure.description(
+    "Проверяет, что:\n"
+    "- Сервер возвращает статус 401 Unauthorized при запросе без токена\n"
+    "- Тело ответа содержит корректную структуру ошибки:\n"
+    "  * поле 'error' присутствует и не пустое\n"
+    "  * поле 'description' присутствует\n"
+    "  * поле 'message' присутствует"
+)
 def test_no_token_authorization(yandex_disk_api):
-    """
-    Тест: запрос к Yandex Disk API без токена авторизации
+    with allure.step("Отправить GET-запрос к Yandex Disk API без токена авторизации"):
+        response = yandex_disk_api.get()
 
-    Проверяет, что:
-    - Сервер возвращает статус 401 Unauthorized
-    - Тело ответа содержит корректную структуру ошибки:
-        * поле 'error' присутствует и не пустое
-        * поле 'description' присутствует
-        * поле 'message' присутствует
-    """
-    response = yandex_disk_api.get()
+    with allure.step("Проверить, что статус ответа — 401 Unauthorized"):
+        assert (
+            response.status_code == HTTPStatus.UNAUTHORIZED
+        ), f"Ожидался статус 401, получен: {response.status_code}"
 
-    assert (
-        response.status_code == HTTPStatus.UNAUTHORIZED
-    ), f"Expected 401, got {response.status_code}"
-
-    disk_info = ErrorResponse(**response.json())
-    assert disk_info.error
-    assert disk_info.description
-    assert disk_info.message
+    with allure.step("Валидировать структуру ошибки в ответе"):
+        error_response = ErrorResponse.model_validate(response.json())
+        assert error_response.error, "Поле 'error' отсутствует или пустое"
+        assert error_response.description, "Поле 'description' отсутствует или пустое"
+        assert error_response.message, "Поле 'message' отсутствует или пустое"
