@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel
 
 
@@ -13,6 +11,6 @@ class DiskInfoResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    error: str
-    description: str
-    message: Optional[str] = None
+    error: str | None = None
+    description: str | None = None
+    message: str | None = None

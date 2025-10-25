@@ -5,6 +5,7 @@ class BaseAPIClient:
     def __init__(self, base_url: str, api_prefix: str = ""):
         self.base_url = base_url.rstrip("/")
         self.api_prefix = api_prefix.lstrip("/")
+        self.session = requests.Session()
 
     def _build_url(self, path: str = "") -> str:
         path = path.lstrip("/")
@@ -17,7 +18,10 @@ class BaseAPIClient:
             headers["Authorization"] = f"OAuth {token}"
         return headers
 
-    def get(self, path: str = "", token: str = None):
+    def get(self, path: str = "", token: str = None, params=None):
         url = self._build_url(path)
         headers = self._get_headers(token)
-        return requests.get(url, headers=headers)
+        return self.session.get(url, headers=headers, params=params)
+
+    def close(self):
+        self.session.close()

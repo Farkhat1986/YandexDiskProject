@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 import allure
 
-from config.settings import VALID_TOKEN
+from config.settings import settings
 from connection.models import DiskInfoResponse
 
 
@@ -16,7 +16,7 @@ from connection.models import DiskInfoResponse
 )
 def test_valid_token_authorization(yandex_disk_api):
     with allure.step("Отправить GET-запрос к Yandex Disk API с валидным токеном"):
-        response = yandex_disk_api.get(token=VALID_TOKEN)
+        response = yandex_disk_api.get(token=settings.VALID_TOKEN)
 
     with allure.step("Проверить, что статус ответа — 200 OK"):
         assert (
