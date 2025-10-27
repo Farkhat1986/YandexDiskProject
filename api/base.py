@@ -1,10 +1,15 @@
 import requests
 
+from config import settings
+
 
 class BaseAPIClient:
-    def __init__(self, base_url: str, api_prefix: str = ""):
-        self.base_url = base_url.rstrip("/")
-        self.api_prefix = api_prefix.lstrip("/")
+
+    api_prefix: str = ""
+
+    def __init__(self, base_url: str = None):
+        self.base_url = (base_url or settings.BASE_URL).rstrip("/")
+        self.api_prefix = self.__class__.api_prefix.lstrip("/")
         self.session = requests.Session()
 
     def _build_url(self, path: str = "") -> str:
