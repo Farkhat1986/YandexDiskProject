@@ -28,5 +28,20 @@ class BaseAPIClient:
         headers = self._get_headers(token)
         return self.session.get(url, headers=headers, params=params)
 
+    def put(self, path: str = "", token: str = None, params=None, json=None):
+        url = self._build_url(path)
+        headers = self._get_headers(token)
+        return self.session.put(url, headers=headers, params=params, json=json)
+
+    def delete(self, path: str = "", token: str = None, params=None):
+        url = self._build_url(path)
+        headers = self._get_headers(token)
+        return self.session.delete(url, headers=headers, params=params)
+
+    def post(self, path: str = "", token: str = None, params=None, json=None):
+        url = self._build_url(path)
+        headers = self._get_headers(token)
+        return self.session.post(url, headers=headers, params=params, json=json)
+
     def close(self):
         self.session.close()
