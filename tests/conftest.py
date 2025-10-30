@@ -1,15 +1,13 @@
+import random
+import uuid
 from typing import Generator
 
 import allure
 import pytest
+import requests
 
-from api.disk_client import YandexDiskClient
+from api.disk_client_new import YandexDiskClient
 from config.settings import settings
-from utils.helpers import (
-    generate_file_content,
-    generate_file_name,
-    generate_folder_name,
-)
 
 
 @pytest.fixture(scope="session")
@@ -28,21 +26,29 @@ def valid_token():
 
 
 @pytest.fixture
-def unique_folder_name():
-    """Генерация уникального имени папки"""
-    return generate_folder_name()
+def unique_folder_name(prefix: str = "test_folder") -> str:
+    """Генерирует уникальное имя папки для тестов"""
+    return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
 
 @pytest.fixture
-def test_file_name():
-    """Имя тестового файла"""
-    return generate_file_name()
+def test_file_name(prefix: str = "test_file", extension: str = "txt") -> str:
+    """Генерирует уникальное имя файла для тестов"""
+    return f"{prefix}_{uuid.uuid4().hex[:6]}.{extension}"
 
 
 @pytest.fixture
-def test_file_content():
-    """Содержимое тестового файла"""
-    return generate_file_content()
+def test_file_content(min_length: int = 10, max_length: int = 100) -> str:
+    """Генерирует случайное содержимое для текстового файла"""
+    words = ["тест", "данные", "файл", "содержимое", "пример", "текст", "информация"]
+    content_length = random.randint(min_length, max_length)
+
+    content = []
+    while len(" ".join(content)) < content_length:
+        word = random.choice(words)
+        content.append(word)
+
+    return " ".join(content)[:content_length]
 
 
 @pytest.fixture
@@ -62,8 +68,16 @@ def created_folder(
             yandex_disk_api.delete_folder(
                 valid_token, unique_folder_name, permanently=True
             )
-        except Exception:
-            pass
+        except requests.exceptions.RequestException as e:
+            # Ловим только ошибки сетевого уровня или API
+            print(f"Не удалось удалить папку {unique_folder_name}: {e}")
+        except Exception as e:
+            # Другие ожидаемые исключения
+            if "не найдено" in str(e).lower() or "not found" in str(e).lower():
+                # Папка уже удалена - это нормально
+                pass
+            else:
+                print(f"Неожиданная ошибка при удалении {unique_folder_name}: {e}")
 
 
 @pytest.fixture
@@ -89,8 +103,17 @@ def deleted_folder(
             yandex_disk_api.delete_folder(
                 valid_token, unique_folder_name, permanently=True
             )
-        except Exception:
-            try:
-                yandex_disk_api.delete_folder(valid_token, unique_folder_name)
-            except Exception:
+        except requests.exceptions.RequestException as e:
+            print(f"Ошибка сети при окончательном удалении {unique_folder_name}: {e}")
+        except Exception as e:
+            error_msg = str(e).lower()
+            if any(msg in error_msg for msg in ["не найдено", "not found", "404"]):
+                # Ресурс уже удален - это нормально
                 pass
+            else:
+                # Пробуем удалить без permanently=True
+                try:
+                    yandex_disk_api.delete_folder(valid_token, unique_folder_name)
+                except Exception:
+                    # Игнорируем ошибки при cleanup
+                    pass

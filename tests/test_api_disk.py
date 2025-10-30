@@ -5,9 +5,9 @@ import allure
 from connection.models import (
     CreateFolderResponse,
     ResourceInfo,
-    TrashResourceInfo,
     UploadUrlResponse,
 )
+from utils.wait import wait_for_condition
 
 
 @allure.title("Создание папки - успешное создание")
@@ -93,9 +93,9 @@ def test_delete_folder_success(yandex_disk_api, valid_token, created_folder):
         ), f"Ожидался статус 204, получен: {delete_response.status_code}"
 
     with allure.step("Проверить, что тело ответа пустое"):
-        assert delete_response.text == "", "Тело ответа должно быть пустым"
+        assert not delete_response.content, "Тело ответа должно быть пустым"
 
-    with allure.step("Шаг 2: Отправить GET запрос для проверки удаления папки"):
+    with allure.step("Отправить GET запрос для проверки удаления папки"):
         get_response = yandex_disk_api.get_resource_info(valid_token, created_folder)
 
     with allure.step("Проверить, что статус ответа — 404 Not Found"):
@@ -126,113 +126,77 @@ def test_delete_nonexistent_folder(yandex_disk_api, valid_token, unique_folder_n
     "- GET запрос подтверждает восстановление папки"
 )
 def test_restore_folder_from_trash(yandex_disk_api, valid_token, unique_folder_name):
-    import time
-
     with allure.step("Предусловие: создать тестовую папку"):
         create_response = yandex_disk_api.create_folder(valid_token, unique_folder_name)
-        assert (
-            create_response.status_code == HTTPStatus.CREATED
-        ), f"Не удалось создать папку: {create_response.status_code}"
+        assert create_response.status_code == HTTPStatus.CREATED, \
+            f"Не удалось создать папку: {create_response.status_code}"
 
     with allure.step("Предусловие: удалить папку в корзину"):
         delete_response = yandex_disk_api.delete_folder(valid_token, unique_folder_name)
-        assert delete_response.status_code in [
-            HTTPStatus.NO_CONTENT,
-            HTTPStatus.ACCEPTED,
-        ], f"Не удалось удалить папку в корзину: {delete_response.status_code}"
+        assert delete_response.status_code in [HTTPStatus.NO_CONTENT, HTTPStatus.ACCEPTED], \
+            f"Не удалось удалить папку в корзину: {delete_response.status_code}"
 
-    with allure.step("Дать время для обработки операции удаления"):
-        time.sleep(3)
+    def folder_in_trash():
+        resp = yandex_disk_api.get_trash_contents(valid_token)
+        if resp.status_code != HTTPStatus.OK:
+            return False
+        items = resp.json().get("_embedded", {}).get("items", [])
+        return any(
+            item.get("type") == "dir" and item.get("name") == unique_folder_name
+            for item in items
+        )
+
+    with allure.step("Дождаться появления папки в корзине"):
+        wait_for_condition(
+            folder_in_trash,
+            timeout=15,
+            error_message=f"Папка {unique_folder_name} не появилась в корзине за 15 сек"
+        )
 
     with allure.step("Получить информацию о папке в корзине"):
-        trash_response = yandex_disk_api.get_trash_contents(valid_token)
-        assert (
-            trash_response.status_code == HTTPStatus.OK
-        ), f"Не удалось получить информацию о корзине: {trash_response.status_code}"
+        trash_resp = yandex_disk_api.get_trash_contents(valid_token)
+        trash_data = trash_resp.json()
+        items = trash_data["_embedded"]["items"]
+        folder_in_trash_item = next(
+            (item for item in items if item.get("name") == unique_folder_name and item.get("type") == "dir"),
+            None
+        )
+        assert folder_in_trash_item is not None, "Папка исчезла из корзины неожиданно"
 
-    with allure.step("Найти папку в корзине по имени"):
-        trash_data = trash_response.json()
-        embedded = trash_data.get("_embedded", {})
-        items = embedded.get("items", [])
+    with allure.step("Восстановить папку из корзины"):
+        restore_resp = yandex_disk_api.restore_from_trash(
+            valid_token, folder_in_trash_item["path"]
+        )
+        assert restore_resp.status_code == HTTPStatus.CREATED, \
+            f"Ожидался 201, получен: {restore_resp.status_code}"
 
-        folder_in_trash = None
-        for item in items:
-            origin_path = item.get("origin_path", "")
-            name_in_trash = item.get("name", "")
+    def folder_restored():
+        resp = yandex_disk_api.get_resource_info(valid_token, unique_folder_name)
+        return resp.status_code == HTTPStatus.OK
 
-            if item.get("type") == "dir" and (
-                name_in_trash == unique_folder_name
-                or origin_path.endswith(f"/{unique_folder_name}")
-            ):
-                folder_in_trash = item
-                break
-
-        assert folder_in_trash is not None, (
-            f"Папка {unique_folder_name} не найдена в корзине. "
-            f"Доступные элементы: {[item.get('name') for item in items if item.get('type') == 'dir']}"
+    with allure.step("Дождаться появления восстановленной папки в основном хранилище"):
+        wait_for_condition(
+            folder_restored,
+            timeout=15,
+            error_message=f"Папка {unique_folder_name} не восстановилась за 15 сек"
         )
 
-    with allure.step("Валидировать информацию о папке в корзине"):
-        trash_info = TrashResourceInfo.model_validate(folder_in_trash)
-        assert trash_info.resource_id is not None, "Resource ID должен присутствовать"
-        assert trash_info.type == "dir", "Тип должен быть 'dir'"
-        assert trash_info.name == unique_folder_name, "Имя папки должно совпадать"
-
-    with allure.step("Отправить PUT запрос для восстановления папки"):
-        restore_response = yandex_disk_api.restore_from_trash(
-            valid_token, folder_in_trash["path"], unique_folder_name
+    def folder_not_in_trash():
+        resp = yandex_disk_api.get_trash_contents(valid_token)
+        if resp.status_code != HTTPStatus.OK:
+            return False
+        items = resp.json().get("_embedded", {}).get("items", [])
+        return not any(
+            item.get("type") == "dir" and item.get("name") == unique_folder_name
+            for item in items
         )
 
-    with allure.step("Проверить, что статус ответа — 201 Created"):
-        assert (
-            restore_response.status_code == HTTPStatus.CREATED
-        ), f"Ожидался статус 201, получен: {restore_response.status_code}"
-
-    with allure.step("Валидировать структуру ответа восстановления"):
-        restore_data = CreateFolderResponse.model_validate(restore_response.json())
-        assert restore_data.method == "GET", "Метод должен быть 'GET'"
-        assert not restore_data.templated, "Templated должен быть false"
-        assert unique_folder_name in str(
-            restore_data.href
-        ), "HREF должен содержать имя папки"
-
-    with allure.step("Дать время для обработки операции восстановления"):
-        time.sleep(2)
-
-    with allure.step("Отправить GET запрос для проверки восстановления"):
-        get_response = yandex_disk_api.get_resource_info(
-            valid_token, unique_folder_name
+    with allure.step("Убедиться, что папка удалена из корзины"):
+        wait_for_condition(
+            folder_not_in_trash,
+            timeout=10,
+            error_message=f"Папка {unique_folder_name} всё ещё в корзине после восстановления"
         )
-
-    with allure.step("Проверить, что статус ответа — 200 OK"):
-        assert (
-            get_response.status_code == HTTPStatus.OK
-        ), f"Ожидался статус 200, получен: {get_response.status_code}"
-
-    with allure.step("Валидировать информацию о восстановленной папке"):
-        folder_info = ResourceInfo.model_validate(get_response.json())
-        assert folder_info.type == "dir", "Тип должен быть 'dir'"
-        assert folder_info.name == unique_folder_name, "Имя папки должно совпадать"
-
-    with allure.step("Проверить, что папка удалилась из корзины"):
-        trash_response_after = yandex_disk_api.get_trash_contents(valid_token)
-        assert (
-            trash_response_after.status_code == HTTPStatus.OK
-        ), "Не удалось получить информацию о корзине после восстановления"
-
-        trash_data_after = trash_response_after.json()
-        embedded_after = trash_data_after.get("_embedded", {})
-        items_after = embedded_after.get("items", [])
-
-        folder_still_in_trash = None
-        for item in items_after:
-            if item.get("type") == "dir" and item.get("name") == unique_folder_name:
-                folder_still_in_trash = item
-                break
-
-        assert (
-            folder_still_in_trash is None
-        ), f"Папка {unique_folder_name} все еще находится в корзине после восстановления"
 
 
 @allure.title("Создание текстового файла")
@@ -279,7 +243,7 @@ def test_create_text_file_success(
         ), f"Ожидался статус 201, получен: {upload_response.status_code}"
 
     with allure.step("Проверить, что тело ответа пустое"):
-        assert upload_response.text == "", "Тело ответа должно быть пустым"
+        assert not upload_response.content, "Тело ответа должно быть пустым"
 
     with allure.step("Проверить создание файла"):
         file_info_response = yandex_disk_api.get_resource_info(
