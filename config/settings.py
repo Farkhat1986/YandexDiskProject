@@ -15,7 +15,7 @@ class Settings:
 
         if not base_url:
             raise ValueError("Ошибка требуется BASE_URL")
-        #if not valid_token:
+        # if not valid_token:
         #    raise ValueError("Ошибка требуется VALID_TOKEN")
 
         self.BASE_URL = base_url.rstrip("/")
@@ -25,5 +25,6 @@ class Settings:
         """Валидация для случаев, когда токен обязателен"""
         if not self.VALID_TOKEN:
             raise ValueError("Ошибка: для этого функционала требуется VALID_TOKEN")
+
 
 settings = Settings()

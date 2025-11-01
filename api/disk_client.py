@@ -17,9 +17,7 @@ class YandexDiskClient(BaseAPIClient):
 
     def create_folder(self, token: str, folder_path: str):
         """Создание папки"""
-        return self.put(
-            path="/resources", token=token, params={"path": folder_path}
-        )
+        return self.put(path="/resources", token=token, params={"path": folder_path})
 
     def get_resource_info(self, token: str, path: str):
         """Получение информации о ресурсе"""
@@ -59,10 +57,25 @@ class YandexDiskClient(BaseAPIClient):
             upload_url,
             data=content.encode("utf-8"),
             headers=headers,
-            timeout=timeout if timeout is not None else self.timeout
+            timeout=timeout if timeout is not None else self.timeout,
         )
 
     def get_folder_info(self, token: str, folder_path: str):
         """Получить информацию о папке"""
         params = {"path": folder_path}
         return self.get(path="/resources", token=token, params=params)
+
+    def get_download_url(self, token: str, file_path: str):
+        return self.get("/resources/download", token=token, params={"path": file_path})
+
+    def copy_resource(self, token: str, from_path: str, to_path: str):
+        return self.post(
+            "/resources/copy", token=token, params={"from": from_path, "path": to_path}
+        )
+
+    def download_public_file(self, url: str) -> str:
+        """Скачивает файл по публичной ссылке и возвращает его содержимое как строку"""
+        import urllib.request
+
+        with urllib.request.urlopen(url) as response:
+            return response.read().decode("utf-8")

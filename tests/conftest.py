@@ -6,7 +6,7 @@ import allure
 import pytest
 import requests
 
-from api.disk_client_new import YandexDiskClient
+from api.disk_client import YandexDiskClient
 from config.settings import settings
 
 
@@ -108,12 +108,9 @@ def deleted_folder(
         except Exception as e:
             error_msg = str(e).lower()
             if any(msg in error_msg for msg in ["не найдено", "not found", "404"]):
-                # Ресурс уже удален - это нормально
                 pass
             else:
-                # Пробуем удалить без permanently=True
                 try:
                     yandex_disk_api.delete_folder(valid_token, unique_folder_name)
                 except Exception:
-                    # Игнорируем ошибки при cleanup
                     pass
