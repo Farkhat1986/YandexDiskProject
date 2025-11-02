@@ -1,4 +1,5 @@
 from api.base import BaseAPIClient
+from connection.models import CopyResourceRequest
 
 
 class YandexDiskClient(BaseAPIClient):
@@ -68,14 +69,22 @@ class YandexDiskClient(BaseAPIClient):
     def get_download_url(self, token: str, file_path: str):
         return self.get("/resources/download", token=token, params={"path": file_path})
 
-    def copy_resource(self, token: str, from_path: str, to_path: str):
-        return self.post(
-            "/resources/copy", token=token, params={"from": from_path, "path": to_path}
-        )
-
-    def download_public_file(self, url: str) -> str:
+    def download_public_file(self, url: str, timeout: float = None) -> str:
         """Скачивает файл по публичной ссылке и возвращает его содержимое как строку"""
-        import urllib.request
+        response = self.session.get(
+            url, timeout=timeout if timeout is not None else self.timeout
+        )
+        response.raise_for_status()
 
-        with urllib.request.urlopen(url) as response:
-            return response.read().decode("utf-8")
+        response.encoding = "utf-8"
+        return response.text
+
+    def copy_resource(self, token: str, from_path: str, to_path: str):
+        """Копирование ресурса"""
+        request_data = CopyResourceRequest(from_path=from_path, to_path=to_path)
+
+        return self.post(
+            "/resources/copy",
+            token=token,
+            params={"from": request_data.from_path, "path": request_data.to_path},
+        )

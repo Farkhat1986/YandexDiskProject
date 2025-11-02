@@ -1,11 +1,14 @@
 import time
 from typing import Callable
 
+TIME_OUT = 10
+POLL_INTERVALL = 0.5
+
 
 def wait_for_condition(
     condition: Callable[[], bool],
-    timeout: int = 10,
-    poll_interval: float = 0.5,
+    timeout: int = TIME_OUT,
+    poll_interval: float = POLL_INTERVALL,
     error_message: str = "Условие не выполнилось в течение таймаута",
 ) -> None:
     start_time = time.time()

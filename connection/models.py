@@ -84,11 +84,6 @@ class CopyResourceResponse(BaseModel):
     method: Literal["GET"]
     templated: bool
 
-    # name: str | None = None
-    # mime_type: str | None = None
-    # media_type: str | None = None
-    # type: #Literal["file", "dir"] | None = None
-
 
 class DownloadLinkResponse(BaseModel):
     """Модель ответа с ссылкой для скачивания"""
@@ -96,3 +91,10 @@ class DownloadLinkResponse(BaseModel):
     href: HttpUrl
     method: Literal["GET"]
     templated: bool
+
+
+class CopyResourceRequest(BaseModel):
+    """Модель запроса для копирования ресурса"""
+
+    from_path: str
+    to_path: str
