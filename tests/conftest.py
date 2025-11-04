@@ -1,6 +1,7 @@
 import random
 import uuid
 from http import HTTPStatus
+from pathlib import PurePosixPath
 from typing import Generator
 
 import allure
@@ -168,3 +169,9 @@ def uploaded_file(yandex_disk_api, valid_token, temp_folder, test_file_content):
     assert upload_result.status_code == HTTPStatus.CREATED
 
     return f"{temp_folder}/{file_name}"
+
+
+@pytest.fixture
+def uploaded_folder_path(uploaded_file: str) -> str:
+    """Фикстура возвращает путь к папке"""
+    return str(PurePosixPath(uploaded_file).parent)
