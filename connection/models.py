@@ -1,6 +1,6 @@
 from typing import List, Literal
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl
 
 
 class DiskUser(BaseModel):
@@ -57,14 +57,20 @@ class UploadUrlResponse(BaseModel):
     templated: bool
 
 
-class FilesListResponse(BaseModel):
-    """Модель ответа со списком файлов"""
-
+class EmbeddedFiles(BaseModel):
     items: List[ResourceInfo]
     limit: int
     offset: int
-    path: str
     total: int
+
+
+class FilesListResponse(BaseModel):
+    """Модель ответа со списком файлов (папки с содержимым)"""
+
+    type: Literal["dir"]
+    path: str
+    name: str
+    embedded: EmbeddedFiles = Field(alias="_embedded")
 
 
 class TrashResourceInfo(BaseModel):
