@@ -38,7 +38,7 @@ class ResourceInfo(BaseModel):
     """Модель информации о ресурсе"""
 
     name: str
-    type: Literal["dir", "file"]
+    type: Literal["file", "dir"] | None = None
     path: str
     created: str | None = None
     modified: str | None = None
@@ -75,3 +75,26 @@ class TrashResourceInfo(BaseModel):
     name: str
     origin_path: str
     resource_id: str
+
+
+class CopyResourceResponse(BaseModel):
+    """Модель ответа при успешном копировании ресурса"""
+
+    href: HttpUrl
+    method: Literal["GET"]
+    templated: bool
+
+
+class DownloadLinkResponse(BaseModel):
+    """Модель ответа с ссылкой для скачивания"""
+
+    href: HttpUrl
+    method: Literal["GET"]
+    templated: bool
+
+
+class CopyResourceRequest(BaseModel):
+    """Модель запроса для копирования ресурса"""
+
+    from_path: str
+    to_path: str

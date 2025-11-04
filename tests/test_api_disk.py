@@ -2,11 +2,7 @@ from http import HTTPStatus
 
 import allure
 
-from connection.models import (
-    CreateFolderResponse,
-    ResourceInfo,
-    UploadUrlResponse,
-)
+from connection.models import CreateFolderResponse, ResourceInfo, UploadUrlResponse
 from utils.wait import wait_for_condition
 
 
@@ -128,13 +124,16 @@ def test_delete_nonexistent_folder(yandex_disk_api, valid_token, unique_folder_n
 def test_restore_folder_from_trash(yandex_disk_api, valid_token, unique_folder_name):
     with allure.step("Предусловие: создать тестовую папку"):
         create_response = yandex_disk_api.create_folder(valid_token, unique_folder_name)
-        assert create_response.status_code == HTTPStatus.CREATED, \
-            f"Не удалось создать папку: {create_response.status_code}"
+        assert (
+            create_response.status_code == HTTPStatus.CREATED
+        ), f"Не удалось создать папку: {create_response.status_code}"
 
     with allure.step("Предусловие: удалить папку в корзину"):
         delete_response = yandex_disk_api.delete_folder(valid_token, unique_folder_name)
-        assert delete_response.status_code in [HTTPStatus.NO_CONTENT, HTTPStatus.ACCEPTED], \
-            f"Не удалось удалить папку в корзину: {delete_response.status_code}"
+        assert delete_response.status_code in [
+            HTTPStatus.NO_CONTENT,
+            HTTPStatus.ACCEPTED,
+        ], f"Не удалось удалить папку в корзину: {delete_response.status_code}"
 
     def folder_in_trash():
         resp = yandex_disk_api.get_trash_contents(valid_token)
@@ -150,7 +149,7 @@ def test_restore_folder_from_trash(yandex_disk_api, valid_token, unique_folder_n
         wait_for_condition(
             folder_in_trash,
             timeout=15,
-            error_message=f"Папка {unique_folder_name} не появилась в корзине за 15 сек"
+            error_message=f"Папка {unique_folder_name} не появилась в корзине за 15 сек",
         )
 
     with allure.step("Получить информацию о папке в корзине"):
@@ -158,8 +157,12 @@ def test_restore_folder_from_trash(yandex_disk_api, valid_token, unique_folder_n
         trash_data = trash_resp.json()
         items = trash_data["_embedded"]["items"]
         folder_in_trash_item = next(
-            (item for item in items if item.get("name") == unique_folder_name and item.get("type") == "dir"),
-            None
+            (
+                item
+                for item in items
+                if item.get("name") == unique_folder_name and item.get("type") == "dir"
+            ),
+            None,
         )
         assert folder_in_trash_item is not None, "Папка исчезла из корзины неожиданно"
 
@@ -167,8 +170,9 @@ def test_restore_folder_from_trash(yandex_disk_api, valid_token, unique_folder_n
         restore_resp = yandex_disk_api.restore_from_trash(
             valid_token, folder_in_trash_item["path"]
         )
-        assert restore_resp.status_code == HTTPStatus.CREATED, \
-            f"Ожидался 201, получен: {restore_resp.status_code}"
+        assert (
+            restore_resp.status_code == HTTPStatus.CREATED
+        ), f"Ожидался 201, получен: {restore_resp.status_code}"
 
     def folder_restored():
         resp = yandex_disk_api.get_resource_info(valid_token, unique_folder_name)
@@ -178,7 +182,7 @@ def test_restore_folder_from_trash(yandex_disk_api, valid_token, unique_folder_n
         wait_for_condition(
             folder_restored,
             timeout=15,
-            error_message=f"Папка {unique_folder_name} не восстановилась за 15 сек"
+            error_message=f"Папка {unique_folder_name} не восстановилась за 15 сек",
         )
 
     def folder_not_in_trash():
@@ -195,7 +199,7 @@ def test_restore_folder_from_trash(yandex_disk_api, valid_token, unique_folder_n
         wait_for_condition(
             folder_not_in_trash,
             timeout=10,
-            error_message=f"Папка {unique_folder_name} всё ещё в корзине после восстановления"
+            error_message=f"Папка {unique_folder_name} всё ещё в корзине после восстановления",
         )
 
 

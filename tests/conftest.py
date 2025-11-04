@@ -1,13 +1,15 @@
 import random
 import uuid
+from http import HTTPStatus
 from typing import Generator
 
 import allure
 import pytest
 import requests
 
-from api.disk_client_new import YandexDiskClient
+from api.disk_client import YandexDiskClient
 from config.settings import settings
+from connection.models import UploadUrlResponse
 
 
 @pytest.fixture(scope="session")
@@ -108,12 +110,61 @@ def deleted_folder(
         except Exception as e:
             error_msg = str(e).lower()
             if any(msg in error_msg for msg in ["не найдено", "not found", "404"]):
-                # Ресурс уже удален - это нормально
                 pass
             else:
-                # Пробуем удалить без permanently=True
                 try:
                     yandex_disk_api.delete_folder(valid_token, unique_folder_name)
                 except Exception:
-                    # Игнорируем ошибки при cleanup
                     pass
+
+
+@pytest.fixture
+def temporary_folders(yandex_disk_api, valid_token, unique_folder_name):
+    """Создаёт временные входную и выходную папки на Диске и удаляет их после теста"""
+    input_folder = f"test_input_{unique_folder_name}"
+    output_folder = f"test_output_{unique_folder_name}"
+
+    with allure.step(f"Создать папки: {input_folder}, {output_folder}"):
+        resp_in = yandex_disk_api.create_folder(valid_token, input_folder)
+        resp_out = yandex_disk_api.create_folder(valid_token, output_folder)
+        assert (
+            resp_in.status_code == HTTPStatus.CREATED
+        ), f"Не удалось создать {input_folder}"
+        assert (
+            resp_out.status_code == HTTPStatus.CREATED
+        ), f"Не удалось создать {output_folder}"
+
+    yield input_folder, output_folder
+
+    with allure.step("Очистка: удалить временные папки безвозвратно"):
+        yandex_disk_api.delete_folder(valid_token, input_folder, permanently=True)
+        yandex_disk_api.delete_folder(valid_token, output_folder, permanently=True)
+
+
+@pytest.fixture
+def temp_folder(yandex_disk_api, valid_token, unique_folder_name):
+    """Фикстура для создания временной папки"""
+    folder_name = f"sdet_data_{unique_folder_name}"
+
+    create_resp = yandex_disk_api.create_folder(valid_token, folder_name)
+    assert create_resp.status_code == HTTPStatus.CREATED
+
+    yield folder_name
+
+    yandex_disk_api.delete_folder(valid_token, folder_name, permanently=True)
+
+
+@pytest.fixture
+def uploaded_file(yandex_disk_api, valid_token, temp_folder, test_file_content):
+    """Фикстура для загруженного файла"""
+    file_name = "data.txt"
+    upload_url_resp = yandex_disk_api.get_upload_url(
+        valid_token, f"{temp_folder}/{file_name}"
+    )
+    assert upload_url_resp.status_code == HTTPStatus.OK
+
+    upload_data = UploadUrlResponse.model_validate(upload_url_resp.json())
+    upload_result = yandex_disk_api.upload_file(upload_data.href, test_file_content)
+    assert upload_result.status_code == HTTPStatus.CREATED
+
+    return f"{temp_folder}/{file_name}"
